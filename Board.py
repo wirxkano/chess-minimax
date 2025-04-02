@@ -1,4 +1,5 @@
 from constants import *
+import random
 
 class Board:
   def __init__(self, turn):
@@ -10,6 +11,13 @@ class Board:
     self.gameOver = None
   
   def score(self, player):
+    """
+    Returns score of specified player
+
+    Args:
+        player (String): color of chess
+    
+    """
     score = 0
     for r in range(DIMENSION):
       for c in range(DIMENSION):
@@ -27,6 +35,13 @@ class Board:
     return score
   
   def rules(self, piece):
+    """
+    Returns possible directions of each piece (just capture move for pawns)
+
+    Args:
+        piece (String): type of piece
+
+    """
     directions = []
     
     if piece in ['wp']: # White Pawn
@@ -56,7 +71,53 @@ class Board:
       
     return directions
   
+  def random_promote(self, promote_to=None):
+    """
+    Returns random promoted piece if not specified
+
+    Args:
+        promote_to (String, optional): type of piece. Defaults to None.
+
+    """
+    if promote_to is not None and promote_to not in ['q', 'n', 'r', 'b']:
+      return self.random_promote('q')
+    return ['q', 'n', 'r', 'b'][random.randint(0, 3)] if promote_to is None else promote_to
+  
+  def promotion(self, row, col, player, player_choice=False):
+    """
+    Returns new state of the board after promote pawn
+
+    Args:
+        row (Int): row
+        col (Int): column
+        player (String): color of chess
+        player_choice (bool, optional): True if it is the player's turn. Defaults to False.
+
+    """
+    if (row == 0 or row == 7) and self.state[row][col][1] == 'p':
+      choice = self.random_promote()
+      
+      if player_choice:
+        choice = input("Promote pawn to: Queen (q), Knight (n), Rook (r), Bishop (b)")
+        if choice not in ['q', 'n', 'r', 'b']:
+          choice = self.random_promote()
+        
+      self.state[row][col] = player + choice
+        
+    return self.state
+  
+  def castling(self):
+    return
+  
   def get_piece_moves(self, r, c):
+    """
+    Returns all posible moves of specified piece.
+
+    Args:
+        r (Int): row
+        c (Int): column
+
+    """
     piece = self.state[r][c]
     moves = []
     
@@ -66,18 +127,15 @@ class Board:
     piece_color = piece[0]
     piece_type = piece[1]
     
-    # forward move for pawns
+    # FORWARD MOVE FOR PAWNS
     if piece_type == 'p':
       dr = -1 if piece_color == 'w' else 1
       
       new_r = r + dr
       if 0 <= new_r < DIMENSION and self.state[new_r][c] == '--':
-        if new_r == 0 or new_r == 7:
-          moves.extend([(new_r, c, promo) for promo in ['q', 'r', 'b', 'n']])
-        else:
-          moves.append((new_r, c))
+        moves.append((new_r, c))
         
-        # position of white and black pawns
+        # START POSITION OF WHITE & BLACK PAWNS
         start_rank = 6 if piece_color == 'w' else 1
         if r == start_rank:
           new_r = r + 2*dr
@@ -118,6 +176,13 @@ class Board:
     return moves
   
   def get_all_moves(self, player):
+    """
+    Returns all possible move of specified player (include not in check after move)
+
+    Args:
+        player (String): color of chess
+
+    """
     all_moves = []
     
     for r in range(DIMENSION):
@@ -132,21 +197,24 @@ class Board:
   def next_turn(self):
     self.turn = 'b' if self.turn == 'w' else 'w'
   
-  def make_move(self, from_pos, to_pos, flag=True):
+  def make_move(self, from_pos, to_pos, player_choice=False, flag=True):
+    """
+    Makes specified piece move from current position to new position.
+
+    Args:
+        from_pos (Tuple): current position (row, column)
+        to_pos (Tuple): new position (row, column)
+        player_choice (bool, optional): Player choose pawn in order to promote to new piece. Defaults to False.
+        flag (bool, optional): check game over. Defaults to True.
+        
+    """
     r1, c1 = from_pos
-    if len(to_pos) == 3:
-      r2, c2, special = to_pos
-    else:
-      r2, c2 = to_pos
-      special = None
+    r2, c2 = to_pos
     
     self.prevPiece = self.state[r2][c2]
     piece = self.state[r1][c1]
     
-    if special in ['q', 'r', 'b', 'n']:
-      self.state[r2][c2] = piece[0] + special
-    else:
-      self.state[r2][c2] = piece
+    self.state[r2][c2] = piece
     self.state[r1][c1] = '--'
     
     if self.state[r2][c2][1] == 'k':
@@ -161,12 +229,16 @@ class Board:
     return self.state
   
   def unmake_move(self, from_pos, to_pos):
+    """
+    Restores the current move.
+
+    Args:
+        from_pos (Tuple): old position (row, column)
+        to_pos (_type_): current position (row, column)
+
+    """
     r1, c1 = from_pos
-    if len(to_pos) == 3:
-      r2, c2, special = to_pos
-    else:
-      r2, c2 = to_pos
-      special = None
+    r2, c2 = to_pos
     
     self.state[r1][c1] = self.state[r2][c2]
     self.state[r2][c2] = self.prevPiece
@@ -235,7 +307,8 @@ class Board:
   
   def game_over(self):
     """
-    Checks for checkmate or stalemate status of board 
+    Checks for checkmate or stalemate status of board
+    
     """
     legal_moves = 0
     for r in range(DIMENSION):
@@ -258,18 +331,36 @@ class Board:
       self.gameOver = insufficent_mate
   
   def insufficient_material(self):
-    piece_counts = {"wk": 0, "bk": 0, "wn": 0, "bn": 0, "wb": 0, "bb": 0, "wr": 0, "br": 0, "wq": 0, "bq": 0, "wp": 0, "bp": 0}
-    
-    for r in range(DIMENSION):
-      for c in range(DIMENSION):
+    piece_counts = {"wminor": 0, "bminor": 0, "king": 0, "wknight": 0, "bknight": 0}
+    for r in range(8):
+      for c in range(8):
         piece = self.state[r][c]
-        if piece != '--':
-          piece_counts[piece] += 1
-    
-    total_pieces = sum(piece_counts.values())
-    if total_pieces == 2 and piece_counts["wk"] == 1 and piece_counts["bk"] == 1:
-      return ("Insufficient Material", None)  # King vs King
-    if total_pieces == 3 and piece_counts["wk"] == 1 and piece_counts["bk"] == 1 and (piece_counts["wn"] == 1 or piece_counts["bn"] == 1 or piece_counts["wb"] == 1 or piece_counts["bb"] == 1):
-      return ("Insufficient Material", None)  # King vs King + minor piece
-    
+        if piece:
+        # if a Queen is present, insufficient material is impossible
+          if piece[1] == 'q':
+            return None
+          if piece[1] == 'k':
+            piece_counts["king"] += 1
+          elif piece[1] == 'n' and piece[0] == 'w':
+            piece_counts["wknight"] += 1
+          elif piece[1] == 'n' and piece[0] == 'b':
+            piece_counts["bknight"] += 1
+          else:
+            if piece[0] == 'w':
+              piece_counts["wminor"] += 1
+            elif piece[0] == 'b':
+              piece_counts["bminor"] += 1
+
+    # King vs King
+    if piece_counts["wminor"] == piece_counts["bminor"] == piece_counts["wknight"] == piece_counts["bknight"] == 0 and piece_counts["king"] == 2:
+      return ("Insufficient Material", None)
+    # King + minor piece vs King
+    elif ((piece_counts["wminor"] == 1 and piece_counts["bminor"] == 0) or (piece_counts["bminor"] == 1 and piece_counts["wminor"] == 0)) and piece_counts["king"] == 2 and piece_counts["bknight"] == piece_counts["wknight"] == 0:
+      return ("Insufficient Material", None)
+    # King + two Knights vs King
+    elif (piece_counts["wknight"] == 2 and piece_counts["king"] == 2 and piece_counts["wminor"] == piece_counts["bminor"] == 0) or (piece_counts["bknight"] == 2 and piece_counts["king"] == 2 and piece_counts["wminor"] == piece_counts["bminor"] == 0):
+      return ("Insufficient Material", None)
+    elif (piece_counts["wminor"] == 1 and piece_counts["king"] == 2 and piece_counts["bminor"] == 0) or (piece_counts["bminor"] == 1 and piece_counts["king"] == 2 and piece_counts["wminor"] == 0):
+      return ("Insufficient Material", None)
+      
     return None

@@ -88,3 +88,9 @@ WEIGHT_SCORE = {'n':0.1,'b':0.1,'q':0.15,'r':0.1,'p':0.05}
 MIN = -1000000
 MAX = 1000000
 DEPTH = 7
+
+DIFFICULTY_LEVELS = {
+    'easy': 3, 
+    'medium': 5, 
+    'hard': 7    
+}

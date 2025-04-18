@@ -69,9 +69,9 @@ def main(argv):
           moves = board.get_piece_moves(selected[0], selected[1])
           
           if (row, col) in moves and not board.in_check_after_move(selected, (row, col), current_player):
-            state = board.make_move(selected, (row, col), player_choice=True)
+            state = board.make_move(selected, (row, col))
             state = board.promotion(row, col, current_player, player_choice=True)
-              
+            
             current_player = 'b' if current_player == 'w' else 'w'
             print(f"{'White' if current_player == 'w' else 'Black'}'s turn")
               

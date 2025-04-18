@@ -6,6 +6,14 @@ class Board:
     self.state = STATE
     self.whiteKingPos = (7, 4)
     self.blackKingPos = (0, 4)
+    
+    self.whiteKingMoved = False
+    self.blackKingMoved = False
+    self.leftWhiteRookMoved = False
+    self.rightWhiteRookMoved = False
+    self.leftBlackRookMoved = False
+    self.rightBlackRookMoved = False
+    
     self.prevPiece = '--'
     self.turn = turn
     self.gameOver = None
@@ -106,8 +114,122 @@ class Board:
         
     return self.state
   
-  def castling(self):
-    return
+  def is_square_attacked(self, r, c, player):
+    """
+    Kiểm tra xem ô (r, c) có bị quân địch tấn công không.
+    """
+    opponent = 'b' if player == 'w' else 'w'
+    for row in range(DIMENSION):
+      for col in range(DIMENSION):
+        if self.state[row][col][0] == opponent:
+          moves = self.get_piece_moves(row, col)
+          if (r, c) in moves:
+            return True
+    return False
+  
+  def can_castling(self, side, player):
+    # CHECK IS MOVED
+    if player == "w":
+      if self.whiteKingMoved:
+        return False
+      if side == "left" and self.leftWhiteRookMoved:
+        return False
+      if side == "right" and self.rightWhiteRookMoved:
+        return False
+    else:
+      if self.blackKingMoved:
+        return False
+      if side == "left" and self.leftBlackRookMoved:
+        return False
+      if side == "right" and self.rightBlackRookMoved:
+        return False
+
+    if self.in_check(player):
+        return False
+    
+    # CHECK ANY PIECE IN BETWEEN
+    if player == "w":
+      king_pos = self.whiteKingPos
+      if side == "right":
+        if any(self.state[7][i] != '--' for i in range(5, 7)):
+          return False
+      else:
+        if any(self.state[7][i] != '--' for i in range(1, 4)):
+          return False
+    else:
+      king_pos = self.blackKingPos
+      if side == "right":
+        if any(self.state[0][i] != '--' for i in range(5, 7)):
+          return False
+      else:
+        if any(self.state[0][i] != '--' for i in range(1, 4)):
+          return False
+        
+    if side == "right":
+      squares_to_check = [(king_pos[0], 5), (king_pos[0], 6)]
+    else:
+      squares_to_check = [(king_pos[0], 3), (king_pos[0], 2)]
+    for square in squares_to_check:
+      if self.is_square_attacked(square[0], square[1], player):
+        return False
+    
+    return True
+  
+  def castling(self, r1, c1, r2, c2):
+    piece = self.state[r1][c1]
+    player = piece[0]
+    
+    if piece[1] != 'k':
+      return False
+    
+    if player == 'w':
+      if self.whiteKingMoved:
+        return False
+      if c2 == 2:
+        self.state[7][2] = 'wk'
+        self.state[7][4] = '--'
+        self.state[7][3] = 'wr'
+        self.state[7][0] = '--'
+        self.whiteKingMoved = True
+        self.leftWhiteRookMoved = True
+        self.whiteKingPos = (7, 2)
+        self.next_turn()
+        return True
+      elif c2 == 6:
+        self.state[7][6] = 'wk'
+        self.state[7][4] = '--'
+        self.state[7][5] = 'wr'
+        self.state[7][7] = '--'
+        self.whiteKingMoved = True
+        self.rightWhiteRookMoved = True
+        self.whiteKingPos = (7, 6)
+        self.next_turn()
+        return True
+    elif player == 'b':
+      if self.blackKingMoved:
+        return False
+      if c2 == 2:
+        self.state[0][2] = 'bk'
+        self.state[0][4] = '--'
+        self.state[0][3] = 'br'
+        self.state[0][0] = '--'
+        self.blackKingMoved = True
+        self.leftBlackRookMoved = True
+        self.blackKingPos = (0, 2)
+        self.next_turn()
+        return True
+      elif c2 == 6:
+        self.state[0][6] = 'bk'
+        self.state[0][4] = '--'
+        self.state[0][5] = 'br'
+        self.state[0][7] = '--'
+        self.blackKingMoved = True
+        self.rightBlackRookMoved = True
+        self.blackKingPos = (0, 6)
+        self.next_turn()
+        return True
+    
+    return False
   
   def get_piece_moves(self, r, c):
     """
@@ -197,7 +319,7 @@ class Board:
   def next_turn(self):
     self.turn = 'b' if self.turn == 'w' else 'w'
   
-  def make_move(self, from_pos, to_pos, player_choice=False, flag=True):
+  def make_move(self, from_pos, to_pos, flag=True):
     """
     Makes specified piece move from current position to new position.
 

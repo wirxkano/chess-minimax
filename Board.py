@@ -14,31 +14,71 @@ class Board:
     self.leftBlackRookMoved = False
     self.rightBlackRookMoved = False
     
-    self.prevPiece = '--'
+    self.moveLog = []
     self.turn = turn
     self.gameOver = None
   
-  def score(self, player):
+  def score(self, color):
     """
     Returns score of specified player
 
     Args:
-        player (String): color of chess
+        color (String): color of chess
     
     """
     score = 0
     for r in range(DIMENSION):
       for c in range(DIMENSION):
         piece = self.state[r][c]
-        if piece[0] != player: continue
+        if piece == '--': continue
         
-        piece_position_score = 0
-        if piece[1] == 'p':
-          piece_position_score = PIECE_POSITIONS_SCORE[player + 'p'][r][c] * WEIGHT_SCORE['p']
-        elif piece[1] != 'k':
-          piece_position_score = PIECE_POSITIONS_SCORE[piece[1]][r][c] * WEIGHT_SCORE[piece[1]]
+        piece_color, piece_type = piece[0], piece[1]
+        piece_score = PIECESCORE[piece_type]
+        position_score = 0
+
+        if piece_type == 'p':
+            position_score = PIECE_POSITIONS_SCORE[piece_color + 'p'][r][c] * WEIGHT_SCORE['p']
+        elif piece_type != 'k':
+            position_score = PIECE_POSITIONS_SCORE[piece_type][r][c] * WEIGHT_SCORE[piece_type]
+
+        if piece_color == color:
+            score += piece_score + position_score
+        else:
+            score -=piece_score + position_score
+    
+    center_squares = [(3, 3), (3, 4), (4, 3), (4, 4)]
+    for r, c in center_squares:
+      piece = self.state[r][c]
+      if piece != '--' and piece[0] == color:
+          score += CENTER_CONTROL_BONUS
+      elif piece != '--' and piece[0] != color:
+          score -= CENTER_CONTROL_BONUS
           
-        score += PIECESCORE[piece[1]] + piece_position_score
+    player_moves = 0
+    opponent_moves = 0
+    for r in range(DIMENSION):
+      for c in range(DIMENSION):
+        if self.state[r][c] != '--':
+          moves = self.get_piece_moves(r, c)
+          if self.state[r][c][0] == color:
+            player_moves += len(moves)
+          else:
+            opponent_moves += len(moves)
+    score += player_moves * MOBILITY_BONUS
+    score -= opponent_moves * MOBILITY_BONUS
+    
+    if self.in_check(color):
+      score -= CHECK_BONUS
+    if self.in_check('b' if color == 'w' else 'w'):
+      score += CHECK_BONUS
+        
+    king_pos = self.whiteKingPos if color == 'w' else self.blackKingPos
+    if king_pos:
+      r, c = king_pos
+      if 2 <= r <= 5 and 2 <= c <= 5:
+        score += KING_SAFETY_PENALTY
+      if (r in [0, 7] and c in [0, 7]):
+        score -= KING_SAFETY_PENALTY
         
     return score
   
@@ -91,26 +131,26 @@ class Board:
       return self.random_promote('q')
     return ['q', 'n', 'r', 'b'][random.randint(0, 3)] if promote_to is None else promote_to
   
-  def promotion(self, row, col, player, player_choice=False):
+  def promotion(self, row, col, color, player_choice=False):
     """
     Returns new state of the board after promote pawn
 
     Args:
         row (Int): row
         col (Int): column
-        player (String): color of chess
+        color (String): color of chess
         player_choice (bool, optional): True if it is the player's turn. Defaults to False.
 
     """
     if (row == 0 or row == 7) and self.state[row][col][1] == 'p':
-      choice = self.random_promote()
+      choice = 'q'
       
       if player_choice:
         choice = input("Promote pawn to: Queen (q), Knight (n), Rook (r), Bishop (b)")
         if choice not in ['q', 'n', 'r', 'b']:
           choice = self.random_promote()
         
-      self.state[row][col] = player + choice
+      self.state[row][col] = color + choice
         
     return self.state
   
@@ -305,21 +345,25 @@ class Board:
         player (String): color of chess
 
     """
-    all_moves = []
+    valid_moves = []
+    raw_moves = []
     
     for r in range(DIMENSION):
       for c in range(DIMENSION):
         if self.state[r][c][0] == player:
           for move in self.get_piece_moves(r, c):
-            if not self.in_check_after_move((r, c), move, player):
-              all_moves.append(((r, c), move))
-           
-    return all_moves
+            raw_moves.append(((r, c), move))
+    
+    for move in raw_moves:
+      if not self.in_check_after_move(move[0], move[1], player):
+        valid_moves.append(move)
+          
+    return valid_moves
   
   def next_turn(self):
     self.turn = 'b' if self.turn == 'w' else 'w'
   
-  def make_move(self, from_pos, to_pos, flag=True):
+  def make_move(self, from_pos, to_pos, auto_promotion=False, flag=True):
     """
     Makes specified piece move from current position to new position.
 
@@ -332,11 +376,23 @@ class Board:
     """
     r1, c1 = from_pos
     r2, c2 = to_pos
-    
-    self.prevPiece = self.state[r2][c2]
     piece = self.state[r1][c1]
     
-    self.state[r2][c2] = piece
+    move_info = {
+      'from': (r1, c1),
+      'to': (r2, c2),
+      'piece': piece,
+      'captured': self.state[r2][c2],
+      'turn': self.turn,
+      'whiteKingPos': self.whiteKingPos,
+      'blackKingPos': self.blackKingPos
+    }
+    self.moveLog.append(move_info)
+    
+    if auto_promotion and piece[1] == 'p' and r2 in [0, 7]:
+      self.state[r2][c2] = piece[0] + 'q'
+    else:
+      self.state[r2][c2] = piece
     self.state[r1][c1] = '--'
     
     if self.state[r2][c2][1] == 'k':
@@ -350,7 +406,7 @@ class Board:
     
     return self.state
   
-  def unmake_move(self, from_pos, to_pos):
+  def unmake_move(self):
     """
     Restores the current move.
 
@@ -359,19 +415,18 @@ class Board:
         to_pos (_type_): current position (row, column)
 
     """
-    r1, c1 = from_pos
-    r2, c2 = to_pos
+    move_info = self.moveLog.pop()
+    r1, c1 = move_info['from']
+    r2, c2 = move_info['to']
     
-    self.state[r1][c1] = self.state[r2][c2]
-    self.state[r2][c2] = self.prevPiece
+    self.state[r1][c1] = move_info['piece']
+    self.state[r2][c2] = move_info['captured']
     
-    if self.state[r1][c1][1] == 'k':
-      if self.state[r1][c1][0] == 'w':
-        self.whiteKingPos = (r1, c1)
-      else:
-        self.blackKingPos = (r1, c1)
+    self.whiteKingPos = move_info['whiteKingPos']
+    self.blackKingPos = move_info['blackKingPos']
     
-    self.next_turn()
+    self.turn = move_info['turn']
+    self.gameOver = None
     
     return self.state
   
@@ -423,7 +478,7 @@ class Board:
     """
     self.make_move(from_pos, to_pos, flag=False)
     in_check = self.in_check(player)
-    self.unmake_move(from_pos, to_pos)
+    self.unmake_move()
     
     return in_check
   

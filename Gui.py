@@ -123,3 +123,14 @@ class Gui:
                     index = (mouse_x - box_x) // CELL_SZ
                     if 0 <= index < 4:
                         return pieces[index]
+                      
+  def render(self, screen, board, current_player, selected, valid_moves, font):
+    if board.in_check(current_player):
+        king_pos = board.whiteKingPos if current_player == 'w' else board.blackKingPos
+    else:
+        king_pos = None
+
+    self.draw_board(screen, selected, valid_moves, king_pos)
+    self.draw_pieces(screen)
+    self.draw_labels(screen, font)
+    p.display.flip()         

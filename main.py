@@ -69,6 +69,7 @@ def main():
                     ip = input("Press Q to quit\n")
                     if ip.lower() == "q":
                         running = False
+                print(board.gameOver)
                 break
             
             state = board.make_move(agent_move[0], agent_move[1])
@@ -89,10 +90,12 @@ def main():
                 row, col = pos[1] // CELL_SZ, pos[0] // CELL_SZ
 
                 if selected:
-                    moves = board.get_piece_moves(selected[0], selected[1])
-
-                    if (row, col) in moves and not board.in_check_after_move(selected, (row, col), current_player):
-                        state = board.make_move(selected, (row, col))
+                    if (row, col) in valid_moves and not board.in_check_after_move(selected, (row, col), current_player):
+                        if board.state[selected[0]][selected[1]][1] == 'k' and\
+                            ((row, col) == (7,6) or (row, col) == (0,6) or (row, col) == (7,2) or (row, col) == (0,2)):
+                            state = board.castling(selected, (row, col))
+                        else:
+                            state = board.make_move(selected, (row, col))
                         piece = board.state[row][col]
                         # Handle pawn promotion via GUI for human player
                         if piece[1] == 'p' and (row == 0 or row == 7):
@@ -109,6 +112,7 @@ def main():
                         if state[row][col] != "--" and state[row][col][0] == current_player:
                             selected = (row, col)
                             valid_moves = board.get_piece_moves(row, col)
+                            valid_moves = Utils.add_castling_move(board, selected, current_player, valid_moves)
                         else:
                             selected = None
                             valid_moves = []
@@ -116,6 +120,7 @@ def main():
                     if state[row][col] != "--" and state[row][col][0] == current_player:
                         selected = (row, col)
                         valid_moves = board.get_piece_moves(row, col)
+                        valid_moves = Utils.add_castling_move(board, selected, current_player, valid_moves)
                     else:
                         selected = None
                         valid_moves = []

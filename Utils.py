@@ -26,3 +26,19 @@ class Utils:
                         help='Difficulty level for AI (only used in games with agent)')
 
     return parser.parse_args()
+  
+  @staticmethod
+  def add_castling_move(board, selected, current_player, moves):
+    if board.state[selected[0]][selected[1]][1] == 'k':
+      if board.can_castling('kingside', current_player):
+        if current_player == 'w':
+            moves.append((7, 6))
+        else:
+            moves.append((0, 6))
+      if board.can_castling('queenside', current_player):
+        if current_player == 'w':
+            moves.append((7, 2))
+        else:
+            moves.append((0,2))
+            
+    return moves

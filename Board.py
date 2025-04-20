@@ -154,11 +154,11 @@ class Board:
         
     return self.state
   
-  def is_square_attacked(self, r, c, player):
+  def is_square_attacked(self, r, c, color):
     """
-    Kiểm tra xem ô (r, c) có bị quân địch tấn công không.
+    Check square (r, c) is attacked.
     """
-    opponent = 'b' if player == 'w' else 'w'
+    opponent = 'b' if color == 'w' else 'w'
     for row in range(DIMENSION):
       for col in range(DIMENSION):
         if self.state[row][col][0] == opponent:
@@ -167,30 +167,30 @@ class Board:
             return True
     return False
   
-  def can_castling(self, side, player):
+  def can_castling(self, side, color):
     # CHECK IS MOVED
-    if player == "w":
+    if color == "w":
       if self.whiteKingMoved:
         return False
-      if side == "left" and self.leftWhiteRookMoved:
+      if side == "queenside" and self.leftWhiteRookMoved:
         return False
-      if side == "right" and self.rightWhiteRookMoved:
+      if side == "kingside" and self.rightWhiteRookMoved:
         return False
     else:
       if self.blackKingMoved:
         return False
-      if side == "left" and self.leftBlackRookMoved:
+      if side == "queenside" and self.leftBlackRookMoved:
         return False
-      if side == "right" and self.rightBlackRookMoved:
+      if side == "kingside" and self.rightBlackRookMoved:
         return False
 
-    if self.in_check(player):
-        return False
+    if self.in_check(color):
+      return False
     
     # CHECK ANY PIECE IN BETWEEN
-    if player == "w":
+    if color == "w":
       king_pos = self.whiteKingPos
-      if side == "right":
+      if side == "kingside":
         if any(self.state[7][i] != '--' for i in range(5, 7)):
           return False
       else:
@@ -198,33 +198,35 @@ class Board:
           return False
     else:
       king_pos = self.blackKingPos
-      if side == "right":
+      if side == "kingside":
         if any(self.state[0][i] != '--' for i in range(5, 7)):
           return False
       else:
         if any(self.state[0][i] != '--' for i in range(1, 4)):
           return False
         
-    if side == "right":
+    if side == "kingside":
       squares_to_check = [(king_pos[0], 5), (king_pos[0], 6)]
     else:
       squares_to_check = [(king_pos[0], 3), (king_pos[0], 2)]
     for square in squares_to_check:
-      if self.is_square_attacked(square[0], square[1], player):
+      if self.is_square_attacked(square[0], square[1], color):
         return False
     
     return True
   
-  def castling(self, r1, c1, r2, c2):
+  def castling(self, from_pos, to_pos):
+    r1, c1 = from_pos
+    _, c2 = to_pos
     piece = self.state[r1][c1]
-    player = piece[0]
+    color = piece[0]
     
     if piece[1] != 'k':
-      return False
+      return self.state
     
-    if player == 'w':
+    if color == 'w':
       if self.whiteKingMoved:
-        return False
+        return self.state
       if c2 == 2:
         self.state[7][2] = 'wk'
         self.state[7][4] = '--'
@@ -234,7 +236,7 @@ class Board:
         self.leftWhiteRookMoved = True
         self.whiteKingPos = (7, 2)
         self.next_turn()
-        return True
+        return self.state
       elif c2 == 6:
         self.state[7][6] = 'wk'
         self.state[7][4] = '--'
@@ -244,10 +246,10 @@ class Board:
         self.rightWhiteRookMoved = True
         self.whiteKingPos = (7, 6)
         self.next_turn()
-        return True
-    elif player == 'b':
+        return self.state
+    elif color == 'b':
       if self.blackKingMoved:
-        return False
+        return self.state
       if c2 == 2:
         self.state[0][2] = 'bk'
         self.state[0][4] = '--'
@@ -257,7 +259,7 @@ class Board:
         self.leftBlackRookMoved = True
         self.blackKingPos = (0, 2)
         self.next_turn()
-        return True
+        return self.state
       elif c2 == 6:
         self.state[0][6] = 'bk'
         self.state[0][4] = '--'
@@ -267,9 +269,9 @@ class Board:
         self.rightBlackRookMoved = True
         self.blackKingPos = (0, 6)
         self.next_turn()
-        return True
+        return self.state
     
-    return False
+    return self.state
   
   def get_piece_moves(self, r, c):
     """
@@ -317,6 +319,18 @@ class Board:
         if captured_piece == '--' or captured_piece[0] != piece_color:
           moves.append((new_r, new_c))
           
+        # CASTLING MOVES
+        # if piece_color == 'w' and r == 7 and c == 4 and not self.whiteKingMoved:
+        #   if self.can_castling('kingside', 'w'):
+        #     moves.append((7, 6))
+        #   if self.can_castling('queenside', 'w'):
+        #     moves.append((7, 2))
+        # elif piece_color == 'b' and r == 0 and c == 4 and not self.blackKingMoved:
+        #   if self.can_castling('kingside', 'b'):
+        #     moves.append((0, 6))
+        #   if self.can_castling('queenside', 'b'):
+        #     moves.append((0, 2))
+          
       elif piece_type == 'p':
         if captured_piece != '--' and captured_piece[0] != piece_color:
           moves.append((new_r, new_c))
@@ -337,12 +351,12 @@ class Board:
     
     return moves
   
-  def get_all_moves(self, player):
+  def get_all_moves(self, color):
     """
     Returns all possible move of specified player (include not in check after move)
 
     Args:
-        player (String): color of chess
+        color (String): color of chess
 
     """
     valid_moves = []
@@ -350,12 +364,12 @@ class Board:
     
     for r in range(DIMENSION):
       for c in range(DIMENSION):
-        if self.state[r][c][0] == player:
+        if self.state[r][c][0] == color:
           for move in self.get_piece_moves(r, c):
             raw_moves.append(((r, c), move))
     
     for move in raw_moves:
-      if not self.in_check_after_move(move[0], move[1], player):
+      if not self.in_check_after_move(move[0], move[1], color):
         valid_moves.append(move)
           
     return valid_moves
